@@ -7,7 +7,7 @@ public class State
 {
     public enum STATE
     {
-        IDLE, PATROL, PURSUE, ATTACK, SLEEP
+        IDLE, PATROL, PURSUE, ATTACK, SLEEP, RUNAWAY
     };
 
     public enum EVENT
@@ -58,6 +58,17 @@ public class State
 
         if (direction.magnitude < visDist && angle < visAngle)
             return true;
+        return false;
+    }
+
+    public bool IsPlayerBehind()
+    {
+        Vector3 direction = npc.transform.position - player.position;
+        float angle = Vector3.Angle(direction, npc.transform.forward);
+        if (direction.magnitude < 2 && angle < 30)
+        {
+            return true;
+        }
         return false;
     }
 
@@ -149,6 +160,11 @@ public class Patrol : State
         if (CanSeePlayer())
         {
             nextState = new Pursue(npc, agent, anim, player);
+            stage = EVENT.EXIT;
+        }
+        else if (IsPlayerBehind())
+        {
+            nextState = new RunAway(npc, agent, anim, player);
             stage = EVENT.EXIT;
         }
     }
@@ -243,6 +259,42 @@ public class Attack : State
     {
         anim.ResetTrigger("isShooting");
         if (shoot != null) shoot.Stop();
+        base.Exit();
+    }
+}
+
+public class RunAway : State
+{
+    GameObject safeLocation;
+
+    public RunAway(GameObject _npc, NavMeshAgent _agent, Animator _anim, Transform _player)
+                : base(_npc, _agent, _anim, _player)
+    {
+        name = STATE.RUNAWAY;
+        safeLocation = GameObject.FindGameObjectWithTag("Safe");
+    }
+
+    public override void Enter()
+    {
+        anim.SetTrigger("isRunning");
+        agent.isStopped = false;
+        agent.speed = 6;
+        agent.SetDestination(safeLocation.transform.position);
+        base.Enter();
+    }
+
+    public override void Update()
+    {
+        if (!agent.pathPending && agent.remainingDistance < 1)
+        {
+            nextState = new Idle(npc, agent, anim, player);
+            stage = EVENT.EXIT;
+        }
+    }
+
+    public override void Exit()
+    {
+        anim.ResetTrigger("isRunning");
         base.Exit();
     }
 }
